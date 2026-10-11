@@ -1,1 +1,133 @@
 
+"""
+Integrated MCA-TOPSIS & MCDM Benchmarking Script
+Author: Abdi Mohammed Ibrahim
+Description: Computes AHP-Entropy hybrid weights and executes TOPSIS, SAW, 
+             PROMETHEE II (Type V), and VIKOR algorithms for 5 road corridors.
+"""
+
+import numpy as np
+import pandas as pd
+from scipy.stats import spearmanr, kendalltau
+
+# 1. Load Corridor Data
+data = {
+    'Corridor': ['R1 (Rwanda)', 'R2 (Atlas)', 'R3 (Imperial)', 'R4 (Meskel Sq)', 'R5 (Bole Michael)'],
+    'C1_Width': [2.20, 1.80, 1.50, 1.90, 0.90],          # Benefit
+    'C2_Surface': [4.2, 3.1, 2.5, 3.5, 1.4],            # Benefit
+    'C3_Tactile': [65.0, 40.0, 20.0, 50.0, 5.0],        # Benefit
+    'C4_Ramps': [80.0, 55.0, 35.0, 60.0, 10.0],         # Benefit
+    'C5_Obstacles': [1.2, 2.8, 4.1, 2.0, 6.5]          # Cost (Lower is better)
+}
+
+df = pd.DataFrame(data)
+X = df.iloc[:, 1:].values
+n_alternatives, n_criteria = X.shape
+
+# Criteria types: 1 for Benefit, -1 for Cost
+is_benefit = np.array([1, 1, 1, 1, -1])
+
+# 2. AHP - Entropy Hybrid Weighting
+# Expert AHP Weights (Subjective)
+w_ahp = np.array([0.25, 0.20, 0.20, 0.20, 0.15])
+
+# Objective Entropy Calculation
+X_norm_e = X / X.sum(axis=0)
+X_norm_e = np.where(X_norm_e == 0, 1e-12, X_norm_e)
+k = 1.0 / np.log(n_alternatives)
+E = -k * np.sum(X_norm_e * np.log(X_norm_e), axis=0)
+d = 1.0 - E
+w_entropy = d / np.sum(d)
+
+# Hybrid Weighting (70% AHP + 30% Entropy)
+alpha = 0.70
+w_hybrid = alpha * w_ahp + (1.0 - alpha) * w_entropy
+w_hybrid /= np.sum(w_hybrid)
+
+print("--- HYBRID CRITERIA WEIGHTS ---")
+for i, w in enumerate(w_hybrid):
+    print(f"Criterion C{i+1}: {w:.4f}")
+
+# 3. MCA-TOPSIS Algorithm (Standards-Referenced Ideal)
+norm_matrix = X / np.sqrt(np.sum(X**2, axis=0))
+weighted_norm = norm_matrix * w_hybrid
+
+A_plus = np.where(is_benefit == 1, np.max(weighted_norm, axis=0), np.min(weighted_norm, axis=0))
+A_minus = np.where(is_benefit == 1, np.min(weighted_norm, axis=0), np.max(weighted_norm, axis=0))
+
+D_plus = np.sqrt(np.sum((weighted_norm - A_plus)**2, axis=1))
+D_minus = np.sqrt(np.sum((weighted_norm - A_minus)**2, axis=1))
+
+C_plus = D_minus / (D_plus + D_minus)
+
+df['TOPSIS_Cj'] = C_plus
+df['TOPSIS_Rank'] = df['TOPSIS_Cj'].rank(ascending=False).astype(int)
+
+# 4. SAW (Simple Additive Weighting) Algorithm
+X_saw = np.zeros_like(X, dtype=float)
+for j in range(n_criteria):
+    if is_benefit[j] == 1:
+        X_saw[:, j] = X[:, j] / np.max(X[:, j])
+    else:
+        X_saw[:, j] = np.min(X[:, j]) / X[:, j]
+
+S_saw = np.sum(X_saw * w_hybrid, axis=1)
+df['SAW_Score'] = S_saw
+df['SAW_Rank'] = df['SAW_Score'].rank(ascending=False).astype(int)
+
+# 5. PROMETHEE II Algorithm (Type V Linear Preference)
+q = 0.05  # Indifference threshold
+p = 0.25  # Preference threshold
+
+pi_matrix = np.zeros((n_alternatives, n_alternatives))
+for i in range(n_alternatives):
+    for k_alt in range(n_alternatives):
+        if i != k_alt:
+            P_sum = 0.0
+            for j in range(n_criteria):
+                if is_benefit[j] == 1:
+                    d_val = X[i, j] - X[k_alt, j]
+                else:
+                    d_val = X[k_alt, j] - X[i, j]
+                
+                if d_val <= q:
+                    P = 0.0
+                elif d_val > p:
+                    P = 1.0
+                else:
+                    P = (d_val - q) / (p - q)
+                
+                P_sum += w_hybrid[j] * P
+            pi_matrix[i, k_alt] = P_sum
+
+phi_plus = np.sum(pi_matrix, axis=1) / (n_alternatives - 1)
+phi_minus = np.sum(pi_matrix, axis=0) / (n_alternatives - 1)
+phi_net = phi_plus - phi_minus
+
+df['PROMETHEE_Net'] = phi_net
+df['PROMETHEE_Rank'] = df['PROMETHEE_Net'].rank(ascending=False).astype(int)
+
+# 6. VIKOR Algorithm
+best_val = np.where(is_benefit == 1, np.max(X, axis=0), np.min(X, axis=0))
+worst_val = np.where(is_benefit == 1, np.min(X, axis=0), np.max(X, axis=0))
+
+S_i = np.sum(w_hybrid * (best_val - X) / (best_val - worst_val), axis=1)
+R_i = np.max(w_hybrid * (best_val - X) / (best_val - worst_val), axis=1)
+
+v = 0.5  # Weight of maximum group utility
+S_star, S_minus = np.min(S_i), np.max(S_i)
+R_star, R_minus = np.min(R_i), np.max(R_i)
+
+Q_i = v * (S_i - S_star) / (S_minus - S_star) + (1.0 - v) * (R_i - R_star) / (R_minus - R_star)
+df['VIKOR_Q'] = Q_i
+df['VIKOR_Rank'] = df['VIKOR_Q'].rank(ascending=True).astype(int)
+
+# 7. Print Results & Calculate Rank Concordance
+print("\n--- FINAL BENCHMARKING RESULTS ---")
+print(df[['Corridor', 'TOPSIS_Rank', 'SAW_Rank', 'PROMETHEE_Rank', 'VIKOR_Rank']])
+
+rho_topsis_saw, _ = spearmanr(df['TOPSIS_Rank'], df['SAW_Rank'])
+rho_topsis_prom, _ = spearmanr(df['TOPSIS_Rank'], df['PROMETHEE_Rank'])
+
+print(f"\nSpearman Correlation (TOPSIS vs SAW): rho = {rho_topsis_saw:.2f}")
+print(f"Spearman Correlation (TOPSIS vs PROMETHEE II): rho = {rho_topsis_prom:.2f}")
