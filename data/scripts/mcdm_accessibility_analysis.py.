@@ -11,7 +11,7 @@ from scipy.stats import spearmanr
 
 # 1. Load Corridor Data (14 Criteria: 9 Objective, 5 Subjective)
 data = {
-    'Corridor': ['R1 (Rwanda)', 'R2 (Dembel/Atlas)', 'R3 (Urael)', 'R4 (22 Sq)', 'R5 (Bole Michael)'],
+    'Corridor': ['R1 (Bole Airport to Rwanda)', 'R2 (Dembel Sq. to Bole Rwanda)', 'R3 (Bole Medihanialem to Urael)', 'R4 (22-Square to Edna Mall)', 'R5 (Bole Airport to Bole Michael)'],
     'C1_Sidewalks': [2.20, 1.80, 1.50, 1.90, 0.90],
     'C2_CurbCuts': [80.0, 55.0, 35.0, 60.0, 10.0],
     'C3_Tactile': [65.0, 40.0, 20.0, 50.0, 5.0],
