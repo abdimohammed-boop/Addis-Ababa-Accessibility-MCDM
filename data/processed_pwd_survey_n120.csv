@@ -1,0 +1,7 @@
+Respondent_ID,Disability_Type,Gender,Age_Group,Corridor_Evaluated,Safety_Perception,Comfort_Perception,Navigability_Perception,Independence_Score,Overall_Usability
+P001,Physical Impairments,Male,25-34,R1,4,4,4,5,4
+P002,Visual Impairments,Female,35-44,R1,4,3,4,4,4
+P003,Physical Impairments,Female,18-24,R5,1,2,1,1,1
+P004,Visual Impairments,Male,45-54,R5,2,1,1,2,1
+P005,Physical Impairments,Male,35-44,R2,3,3,3,3,3
+P006,Visual Impairments,Female,25-34,R3,2,2,2,2,2
